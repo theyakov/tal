@@ -4,304 +4,79 @@
   <meta charset="utf-8" />
   <title>Matrix Painter</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!-- Fonts with broad Unicode coverage -->
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
-  <style>
-body {
-  font-family: sans-serif;
-  margin: 40px;
-  background: #fafafa;
-  color: #222;
-}
 
-h1 {
-  margin-bottom: 1rem;
-}
+  <!-- Fonts with broad Unicode coverage (+ Egyptian Hieroglyphs) -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans&family=Noto+Sans+Symbols+2&family=Noto+Sans+Egyptian+Hieroglyphs&display=swap" rel="stylesheet">
 
-.controls {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.8rem 1rem;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  font-weight: 500;
-  font-size: 0.9rem;
-}
-
-input, select, button {
-  margin-top: 0.3rem;
-  padding: 0.5rem;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-}
-
-button {
-  background: #0078d7;
-  color: white;
-  border: none;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-button:hover {
-  background: #005fa3;
-}
-
-canvas {
-  border: 2px solid #ccc;
-  border-radius: 8px;
-  background: white;
-}
-
-  </style>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body>
   <h1>Matrix Painter</h1>
 
-<div class="controls">
-  <label>Rows <input type="number" id="rows" value="8"></label>
-  <label>Columns <input type="number" id="cols" value="8"></label>
-  <label>Cell size (px) <input type="number" id="cellSize" value="64"></label>
-  <label>Font size (px) <input type="number" id="fontSize" value="64"></label>
-  <label>Font family
-    <select id="fontFamily">
-      <option>Arial</option>
-      <option>Times New Roman</option>
-      <option>Courier New</option>
-      <option>Noto Sans</option>
-    </select>
-  </label>
-  <label>Symbol (any Unicode) <input type="text" id="symbol" value="★"></label>
+  <div class="controls">
+    <label>Rows <input type="number" id="rows" value="8"></label>
+    <label>Columns <input type="number" id="cols" value="8"></label>
+    <label>Cell size (px) <input type="number" id="cellSize" value="64"></label>
+    <label>Font size (px) <input type="number" id="fontSize" value="64"></label>
+    <label>Font family
+      <select id="fontFamily">
+        <option>Arial</option>
+        <option>Times New Roman</option>
+        <option>Courier New</option>
+        <option>Noto Sans</option>
+        <option>Noto Sans Egyptian Hieroglyphs</option>
+      </select>
+    </label>
+    <label>Symbol (any Unicode) <input type="text" id="symbol" value="★"></label>
 
-  <label>Mode
-    <select id="mode">
-      <option value="char" selected>Place symbol</option>
-      <option value="img">Place image</option>
-      <option value="erase">Erase</option>
-    </select>
-  </label>
+    <label>Mode
+      <select id="mode">
+        <option value="char" selected>Place symbol</option>
+        <option value="img">Place image</option>
+        <option value="erase">Erase</option>
+      </select>
+    </label>
 
-  <div id="imgRow" style="display:none;">
-    <label>Upload image <input type="file" id="imgInput" accept="image/*"></label>
+    <div id="imgRow" style="display:none;">
+      <label>Upload image <input type="file" id="imgInput" accept="image/*"></label>
+    </div>
+
+    <button id="clearBtn">Clear</button>
+    <button id="pngBtn">Save PNG</button>
+    <button id="pdfBtn">Save PDF</button>
   </div>
 
-  <button id="clearBtn">Clear</button>
-  <button id="pngBtn">Save PNG</button>
-  <button id="pdfBtn">Save PDF</button>
-</div>
+  <!-- WhatsApp-like symbol picker -->
+  <div class="pickerWrap">
+    <div class="pickerHeader">
+      <div class="pickerCatHeader">
+        <div id="catTitle" class="catTitle">Smileys</div>
+        <div id="catSubtitle" class="catSubtitle"></div>
+      </div>
+      <div class="pickerTabs">
+        <button class="tabBtn active" id="tabEmoji" type="button">😀 Emoji</button>
+        <button class="tabBtn" id="tabHiero" type="button">𓀀 Hieroglyphs</button>
+      </div>
+      <input class="pickerSearch" id="pickerSearch" type="text" placeholder="Search disabled in offline picker" disabled>
+    </div>
 
-<canvas id="gridCanvas" width="512" height="512"></canvas>
+    <div class="pickerBody">
+      <div class="pickerCats" id="pickerCats"></div>
+      <div class="pickerGrid" id="pickerGrid"></div>
+    </div>
 
-  <!-- <div id="canvasWrap">
-    <canvas id="gridCanvas" width="512" height="512"></canvas>
-  </div> -->
+    <div class="pickerHint">
+      Click a symbol to select it (it fills “Symbol” and switches to “Place symbol”).
+    </div>
+  </div>
 
-  <p id="status" style="font-size:12px;color:#444;margin-top:8px;">Click cells to place content.</p>
+  <canvas id="gridCanvas" width="512" height="512"></canvas>
+
+  <p id="status" class="status">Click cells to place content.</p>
 
   <!-- jsPDF for PDF export -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script>
-    // DOM refs
-    const rowsEl = document.getElementById('rows');
-    const colsEl = document.getElementById('cols');
-    const cellSizeEl = document.getElementById('cellSize');
-    const fontSizeEl = document.getElementById('fontSize');
-    const fontFamilyEl = document.getElementById('fontFamily');
-    const symbolEl = document.getElementById('symbol');
-    const modeEl = document.getElementById('mode');
-    const imgRow = document.getElementById('imgRow');
-    const imgInput = document.getElementById('imgInput');
-    const clearBtn = document.getElementById('clearBtn');
-    const pngBtn = document.getElementById('pngBtn');
-    const pdfBtn = document.getElementById('pdfBtn');
-    const statusEl = document.getElementById('status');
-
-    const canvas = document.getElementById('gridCanvas');
-    const ctx = canvas.getContext('2d');
-
-    let R = +rowsEl.value;
-    let C = +colsEl.value;
-    let cellSize = +cellSizeEl.value;
-    let fontPx = +fontSizeEl.value;
-    let fontFamily = fontFamilyEl.value;
-    let currentImg = null;
-
-    // matrix[r][c] = null | {type:'char', value:string} | {type:'img', img:Image}
-    let matrix = makeEmpty(R, C);
-
-    function makeEmpty(r, c) {
-      return Array.from({ length: r }, () => Array.from({ length: c }, () => null));
-    }
-
-    function resizeCanvas() {
-      canvas.width = C * cellSize;
-      canvas.height = R * cellSize;
-    }
-
-    function draw() {
-      // background
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // grid
-      ctx.strokeStyle = '#ddd';
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= R; i++) {
-        const y = i * cellSize + 0.5;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-      }
-      for (let j = 0; j <= C; j++) {
-        const x = j * cellSize + 0.5;
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-      }
-
-      // content
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#000';
-      ctx.font = `${fontPx}px "${fontFamily}", "Noto Sans", "Noto Sans Symbols 2", sans-serif`;
-
-      for (let r = 0; r < R; r++) {
-        for (let c = 0; c < C; c++) {
-          const cell = matrix[r][c];
-          const cx = c * cellSize + cellSize / 2;
-          const cy = r * cellSize + cellSize / 2;
-
-          if (!cell) continue;
-
-          if (cell.type === 'char') {
-            ctx.fillText(cell.value, cx, cy);
-          } else if (cell.type === 'img' && cell.img.complete) {
-            const img = cell.img;
-            const scale = Math.min(cellSize / img.width, cellSize / img.height);
-            const w = img.width * scale;
-            const h = img.height * scale;
-            ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
-          }
-        }
-      }
-    }
-
-    function rebuildMatrixPreserve() {
-      const newM = makeEmpty(R, C);
-      const rMin = Math.min(R, matrix.length);
-      const cMin = Math.min(C, matrix[0].length);
-      for (let r = 0; r < rMin; r++) {
-        for (let c = 0; c < cMin; c++) {
-          newM[r][c] = matrix[r][c];
-        }
-      }
-      matrix = newM;
-    }
-
-    function applyDimensions() {
-      R = clamp(+rowsEl.value, 1, 500);
-      C = clamp(+colsEl.value, 1, 500);
-      cellSize = clamp(+cellSizeEl.value, 10, 200);
-      fontPx = clamp(+fontSizeEl.value, 6, 400);
-      fontFamily = fontFamilyEl.value || 'Noto Sans';
-      rebuildMatrixPreserve();
-      resizeCanvas();
-      draw();
-      status(`Canvas: ${canvas.width}×${canvas.height}px`);
-    }
-
-    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-    canvas.addEventListener('click', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      // Map pointer coords to canvas pixel coords even if CSS scaling is applied
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
-
-      const c = Math.floor(x / cellSize);
-      const r = Math.floor(y / cellSize);
-      if (r < 0 || r >= R || c < 0 || c >= C) return;
-
-      const mode = modeEl.value;
-      if (mode === 'char') {
-        const sym = symbolEl.value;
-        if (!sym) return;
-        matrix[r][c] = { type: 'char', value: sym };
-      } else if (mode === 'img') {
-        if (!currentImg) { status('Upload an image first'); return; }
-        matrix[r][c] = { type: 'img', img: currentImg };
-      } else if (mode === 'erase') {
-        matrix[r][c] = null;
-      }
-      draw();
-    });
-
-    rowsEl.addEventListener('change', applyDimensions);
-    colsEl.addEventListener('change', applyDimensions);
-    cellSizeEl.addEventListener('change', applyDimensions);
-    fontSizeEl.addEventListener('change', applyDimensions);
-    fontFamilyEl.addEventListener('change', () => { fontFamily = fontFamilyEl.value; draw(); });
-
-    modeEl.addEventListener('change', () => {
-      imgRow.style.display = modeEl.value === 'img' ? '' : 'none';
-    });
-
-    imgInput.addEventListener('change', () => {
-      const file = imgInput.files && imgInput.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => { currentImg = img; status('Image loaded'); };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    clearBtn.addEventListener('click', () => {
-      matrix = makeEmpty(R, C);
-      draw();
-    });
-
-    pngBtn.addEventListener('click', () => {
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'matrix.png';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      }, 'image/png');
-    });
-
-    pdfBtn.addEventListener('click', async () => {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 24;
-      const imgData = canvas.toDataURL('image/png');
-      // Fit to page with margins
-      const scale = Math.min((pageW - 2 * margin) / canvas.width, (pageH - 2 * margin) / canvas.height);
-      const w = canvas.width * scale;
-      const h = canvas.height * scale;
-      const x = (pageW - w) / 2;
-      const y = (pageH - h) / 2;
-      pdf.addImage(imgData, 'PNG', x, y, w, h);
-      pdf.save('matrix.pdf');
-    });
-
-    function status(msg) { statusEl.textContent = msg; }
-
-    // init
-    applyDimensions();
-  </script>
+  <script src="./app.js"></script>
 </body>
 </html>
